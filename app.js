@@ -2,6 +2,53 @@ const $ = (selector) => document.querySelector(selector);
 let me = null;
 let mode = 'login';
 
+// Google Identity Services: Google returns a credential, then the backend must
+// verify it and create the site's normal session at POST /api/google-login.
+window.initGoogleSignIn = function initGoogleSignIn() {
+  if (!window.google?.accounts?.id) return;
+  google.accounts.id.initialize({
+    client_id: window.HOOST_GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+    cancel_on_tap_outside: true
+  });
+  const target = document.getElementById('googleSignInButton');
+  if (target) {
+    target.innerHTML = '';
+    google.accounts.id.renderButton(target, {
+      type: 'standard', theme: 'filled_black', size: 'large',
+      text: 'continue_with', shape: 'rectangular', width: 320,
+      logo_alignment: 'left', locale: 'ar'
+    });
+  }
+};
+
+async function handleGoogleCredential(response) {
+  const message = document.getElementById('authMsg');
+  if (!response?.credential) {
+    message.textContent = 'لم يصل رمز تسجيل الدخول من Google. حاول مرة أخرى.';
+    return;
+  }
+  message.textContent = 'جارٍ التحقق من حساب Google...';
+  try {
+    // Do not trust or decode the token as authentication in the browser.
+    // The backend must validate it with Google and establish a secure session.
+    const data = await api('/api/google-login', {
+      method: 'POST',
+      body: JSON.stringify({ credential: response.credential })
+    });
+    me = data.user;
+    hideModal();
+    await refresh();
+  } catch (error) {
+    message.textContent = error.message.includes('Failed to fetch') || error.message.includes('404')
+      ? 'زر Google جاهز، لكن الخادم لا يحتوي بعد على /api/google-login. GitHub Pages وحده لا يستطيع إنشاء جلسة آمنة؛ يلزم ربطه بخادم خلفي.'
+      : error.message;
+  }
+}
+
+
+
 async function api(url, opt = {}) {
   const response = await fetch(url, {
     credentials: 'same-origin',
