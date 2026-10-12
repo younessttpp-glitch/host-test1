@@ -1,6 +1,17 @@
 const $ = (selector) => document.querySelector(selector);
 let me = null;
 let mode = 'login';
+let googlePromptRequested = false;
+
+function openGoogleAccountChooser() {
+  googlePromptRequested = true;
+  if (window.google?.accounts?.id) {
+    // Show Google's account picker/One Tap UI. The official button remains
+    // available as a reliable fallback when browser settings block the prompt.
+    google.accounts.id.prompt();
+    googlePromptRequested = false;
+  }
+}
 
 // Google Identity Services: Google returns a credential, then the backend must
 // verify it and create the site's normal session at POST /api/google-login.
@@ -21,6 +32,7 @@ window.initGoogleSignIn = function initGoogleSignIn() {
       logo_alignment: 'left', locale: 'ar'
     });
   }
+  if (googlePromptRequested) openGoogleAccountChooser();
 };
 
 async function handleGoogleCredential(response) {
@@ -75,7 +87,10 @@ function showModal(nextMode = 'login') {
   $('#emailInput').focus();
 }
 function hideModal() { $('#modal').classList.add('hidden'); }
-$('#loginOpen').addEventListener('click', () => showModal('login'));
+$('#loginOpen').addEventListener('click', () => {
+  showModal('login');
+  openGoogleAccountChooser();
+});
 $('#dashOpen').addEventListener('click', () => me ? $('#dashboard').scrollIntoView({ behavior: 'smooth' }) : showModal('login'));
 $('#close').addEventListener('click', hideModal);
 $('#modal').addEventListener('click', (event) => { if (event.target === $('#modal')) hideModal(); });
