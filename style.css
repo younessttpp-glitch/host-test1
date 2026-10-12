@@ -2,3 +2,5 @@
 
 /* Google Identity Services sign-in */
 .google-login{display:grid;justify-items:center;gap:5px;margin-top:18px}.google-login>div{min-height:44px;max-width:100%;overflow:hidden}.google-note{font-size:11px;color:var(--muted);margin:4px 0 0;text-align:center}.google-login iframe{max-width:100%}
+
+.account-icon{display:inline-grid;place-items:center;width:40px;height:40px;min-width:40px;border-radius:50%;border:1px solid #5be0c477;background:linear-gradient(140deg,#5be0c4,#5b87ff);color:#07121e;text-decoration:none;font-size:16px;font-weight:900;box-shadow:0 0 20px #5be0c41c;transition:transform .18s ease,filter .18s ease}.account-icon:hover{filter:brightness(1.1);transform:translateY(-1px)}nav .account-icon{padding:0}
