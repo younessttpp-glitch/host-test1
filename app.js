@@ -2,6 +2,37 @@ const $ = (selector) => document.querySelector(selector);
 let me = null;
 let mode = 'login';
 let googlePromptRequested = false;
+const USER_CACHE_KEY = 'hoost_display_user';
+
+function cacheUser(user) {
+  try {
+    if (user) localStorage.setItem(USER_CACHE_KEY, JSON.stringify({ name: user.name || '', email: user.email || '' }));
+    else localStorage.removeItem(USER_CACHE_KEY);
+  } catch (_) {}
+}
+
+function readCachedUser() {
+  try {
+    const value = localStorage.getItem(USER_CACHE_KEY);
+    return value ? JSON.parse(value) : null;
+  } catch (_) { return null; }
+}
+
+function updateAccountIcon(user) {
+  const account = document.getElementById('accountOpen');
+  const initial = document.getElementById('accountInitial');
+  const loginButton = document.getElementById('loginOpen');
+  if (!account || !loginButton) return;
+  const signedIn = Boolean(user);
+  account.classList.toggle('hidden', !signedIn);
+  loginButton.classList.toggle('hidden', signedIn);
+  if (initial && signedIn) {
+    const label = user.name || user.email || 'حسابي';
+    initial.textContent = String(label).trim().charAt(0).toUpperCase() || 'ح';
+    account.title = user.email || 'حسابك';
+    account.setAttribute('aria-label', 'فتح صفحة حساب ' + (user.email || 'المستخدم'));
+  }
+}
 
 function openGoogleAccountChooser() {
   googlePromptRequested = true;
@@ -50,6 +81,8 @@ async function handleGoogleCredential(response) {
       body: JSON.stringify({ credential: response.credential })
     });
     me = data.user;
+    cacheUser(me);
+    updateAccountIcon(me);
     hideModal();
     await refresh();
   } catch (error) {
@@ -91,7 +124,10 @@ $('#loginOpen').addEventListener('click', () => {
   showModal('login');
   openGoogleAccountChooser();
 });
-$('#dashOpen').addEventListener('click', () => me ? $('#dashboard').scrollIntoView({ behavior: 'smooth' }) : showModal('login'));
+$('#dashOpen').addEventListener('click', () => {
+  if (me || readCachedUser()) window.location.href = './account.html';
+  else showModal('login');
+});
 $('#close').addEventListener('click', hideModal);
 $('#modal').addEventListener('click', (event) => { if (event.target === $('#modal')) hideModal(); });
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideModal(); });
@@ -107,6 +143,8 @@ $('#auth').addEventListener('submit', async (event) => {
       method: 'POST', body: JSON.stringify({ email: $('#emailInput').value.trim(), password: $('#passInput').value })
     });
     me = data.user;
+    cacheUser(me);
+    updateAccountIcon(me);
     hideModal();
     await refresh();
   } catch (error) { $('#authMsg').textContent = error.message; }
@@ -114,7 +152,7 @@ $('#auth').addEventListener('submit', async (event) => {
 });
 $('#logout').addEventListener('click', async () => {
   const button = $('#logout'); button.disabled = true;
-  try { await api('/api/logout', { method: 'POST', body: '{}' }); me = null; await refresh(); }
+  try { await api('/api/logout', { method: 'POST', body: '{}' }); me = null; cacheUser(null); updateAccountIcon(null); await refresh(); }
   catch (error) { $('#msg').textContent = error.message; }
   finally { button.disabled = false; }
 });
@@ -131,7 +169,17 @@ async function loadStatus() {
   finally { button.disabled = false; }
 }
 async function init() {
-  const data = await api('/api/status');
+  const cachedUser = readCachedUser();
+  if (cachedUser) updateAccountIcon(cachedUser);
+  let data;
+  try { data = await api('/api/status'); }
+  catch (error) {
+    console.debug('تعذر تحميل حالة الخادم:', error.message);
+    const plansGrid = document.getElementById('plansGrid');
+    if (plansGrid) plansGrid.textContent = 'خدمات الخادم غير متاحة حاليًا. يلزم تشغيل الخادم الخلفي.';
+    await refresh();
+    return;
+  }
   $('#plansGrid').innerHTML = (data.plans || []).map((plan) => `<article class="plan"><div class="plan-tag">${plan.id === 'free' ? 'FREE TRIAL' : plan.id === 'pro' ? 'POPULAR' : 'HOOST PLAN'}</div><h3>${esc(plan.name)}</h3><div class="price">${plan.price === 0 ? 'مجانًا' : esc(plan.price) + ' ج.م'} <small>${plan.price ? '/ شهر' : ''}</small></div><p>${esc(plan.desc)}</p><ul><li>${plan.id === 'free' ? '72 ساعة تجربة' : esc(plan.ram) + ' RAM*'}</li><li>${esc(plan.slots)} لاعبًا كقيمة عرضية*</li><li>${esc(plan.disk)} مساحة عرضية*</li><li>لوحة عربية</li></ul><button type="button" data-plan="${esc(plan.id)}" class="${plan.id === 'free' ? 'primary' : 'outline'}">${plan.id === 'free' ? 'ابدأ مجانًا' : 'اختيار الباقة'}</button></article>`).join('');
   document.querySelectorAll('[data-plan]').forEach((button) => button.addEventListener('click', () => {
     if (!me) { showModal('register'); return; }
@@ -146,6 +194,8 @@ async function refresh() {
   try {
     const data = await api('/api/me');
     me = data.user;
+    cacheUser(me);
+    updateAccountIcon(me);
     $('#dashboard').classList.toggle('hidden', !me);
     if (!me) return;
     $('#email').textContent = me.email;
